@@ -6,7 +6,6 @@ namespace catalogue.ServiceModel
 {
 	[XmlRoot(ElementName = "track")]
 	[DataContract(Name = "track")]
-	[RestService("/track/details/{Id}")]
 	public class Track
 	{
 		public const string TYPE = "track";

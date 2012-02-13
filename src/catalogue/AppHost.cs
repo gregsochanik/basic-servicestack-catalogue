@@ -27,7 +27,7 @@ namespace catalogue {
 						{"Access-Control-Allow-Origin", "*"},
 						{"Access-Control-Allow-Method", "GET, OPTIONS"}
 					},
-					EnableFeatures = Feature.All.Remove(Feature.All).Add(Feature.Xml | Feature.Json | Feature.Html),
+					EnableFeatures = Feature.All.Remove(Feature.All).Add(Feature.Xml | Feature.Json),
 				}
 			);
 

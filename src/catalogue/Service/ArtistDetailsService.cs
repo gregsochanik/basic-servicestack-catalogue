@@ -19,8 +19,8 @@ namespace catalogue.Service
 		public override object OnGet(Artist request) {
 			var cacheKey = UrnId.Create<Artist>(request.Id.ToString());
 
-			return RequestContext.ToOptimizedResultUsingCache(_cacheClient, cacheKey,
-				() => _repository.Get(request.Id)
+			return ErrorCheck.NotFoundCheck(
+					() => RequestContext.ToOptimizedResultUsingCache(_cacheClient, cacheKey, () => _repository.Get(request.Id))
 				);
 		}
 	}
