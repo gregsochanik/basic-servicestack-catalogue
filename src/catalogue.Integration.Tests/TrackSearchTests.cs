@@ -2,11 +2,15 @@
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Web.Script.Serialization;
 using catalogue.ServiceModel.Solr;
 using Microsoft.Practices.ServiceLocation;
 using NUnit.Framework;
+using Rhino.Mocks;
+using ServiceStack.ServiceInterface.ServiceModel;
 using SolrNet;
 using SolrNet.Attributes;
 using SolrNet.Impl;
@@ -119,17 +123,19 @@ namespace catalogue.Integration.Tests
 	[TestFixture]
 	public class SolrFieldParserTests
 	{
+		private readonly IFieldMapper _fieldMapper = MockRepository.GenerateStub<IFieldMapper>();
+
 		[Test]
 		public void Should_return_correct_instance_type()
 		{
-			var solrFieldParser = new SolrFieldParser<SolrTrack>();
+			var solrFieldParser = new SolrFieldParser<SolrTrack>(_fieldMapper);
 			Assert.That(solrFieldParser.ParseFields(new NameValueCollection()), Is.TypeOf(typeof(SolrTrack)));
 		}
 		
 		[Test]
 		public void Should_read_field_name_attributes()
 		{
-			var solrFieldParser = new SolrFieldParser<SolrTrack>();
+			var solrFieldParser = new SolrFieldParser<SolrTrack>(_fieldMapper);
 			solrFieldParser.ParseFields(null);
 		}
 
@@ -143,15 +149,54 @@ namespace catalogue.Integration.Tests
 		public void SHould_not_fail_if_does_not_exist(){}
 	}
 
+	[TestFixture]
+	public class SolrFieldMapperTests
+	{
+		[Test]
+		public void Should_map_fields_to_properties()
+		{
+			var solrFieldMapper = new SolrFieldMapper<SolrTrack>();
+			Assert.That(solrFieldMapper.GetPropertyToFieldMapping().Count(), Is.EqualTo(9));
+		}
+	}
+
+	public class SolrFieldMapper<T> : IFieldMapper
+	{
+		public IDictionary<PropertyInfo, Attribute> GetPropertyToFieldMapping()
+		{
+			var type = typeof(T);
+
+			var propertyToFieldMapping = new Dictionary<PropertyInfo, Attribute>();
+
+			foreach (var property in type.GetProperties())
+			{
+				var fieldAttribute = (SolrFieldAttribute)property.GetCustomAttributes(typeof(SolrFieldAttribute), false).First();
+				if (fieldAttribute != null)
+					propertyToFieldMapping.Add(property, fieldAttribute);
+			}
+			return propertyToFieldMapping;
+		}
+	}
+
+	public interface IFieldMapper
+	{
+		IDictionary<PropertyInfo, Attribute> GetPropertyToFieldMapping();
+	}
 
 	public class SolrFieldParser<T>
 	{
+		private readonly IFieldMapper _fieldMapper;
+
+		public SolrFieldParser(IFieldMapper fieldMapper)
+		{
+			_fieldMapper = fieldMapper;
+		}
+
 		public T ParseFields(NameValueCollection doc)
 		{
 			var type = typeof (T);
 
-			Type solrFieldAttribute = typeof(SolrFieldAttribute);
-			Type solrUniqueKeyAttribute = typeof(SolrUniqueKeyAttribute);
+			var propertyToFieldMapping = _fieldMapper.GetPropertyToFieldMapping();
 
 			return (T)Activator.CreateInstance(type);
 		}

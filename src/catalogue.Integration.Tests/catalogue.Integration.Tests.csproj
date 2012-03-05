@@ -58,6 +58,9 @@
     <Reference Include="pnunit.framework">
       <HintPath>..\..\packages\NUnit.2.5.10.11092\lib\pnunit.framework.dll</HintPath>
     </Reference>
+    <Reference Include="Rhino.Mocks">
+      <HintPath>..\..\packages\RhinoMocks.3.6\lib\Rhino.Mocks.dll</HintPath>
+    </Reference>
     <Reference Include="ServiceStack">
       <HintPath>..\..\packages\ServiceStack.3.4.3\lib\ServiceStack.dll</HintPath>
     </Reference>
