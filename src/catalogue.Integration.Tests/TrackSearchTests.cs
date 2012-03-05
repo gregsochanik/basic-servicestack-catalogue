@@ -101,8 +101,9 @@ namespace catalogue.Integration.Tests
 		{
 			var jss = new JavaScriptSerializer();
 			var output = jss.Deserialize<dynamic>(outputAsString);
-			
-			foreach(var doc in output["response"]["docs"])
+
+			var docs = output["response"]["docs"];
+			foreach(var doc in docs)
 			{
 				yield return new SolrTrack
 				             	{
@@ -123,30 +124,26 @@ namespace catalogue.Integration.Tests
 	[TestFixture]
 	public class SolrFieldParserTests
 	{
-		private readonly IFieldMapper _fieldMapper = MockRepository.GenerateStub<IFieldMapper>();
+
+		private dynamic StubTrack()
+		{
+			var json = "{\"id\":\"19223\",\"Album\":\"The Hits/The B-Sides [Disc 2]\",\"Artist\":\"Prince\", " +
+			"\"BitRate\":192,\"Composer\":\"Prince\",\"Genre\":\"Rock\",\"Kind\":\"MPEG audio file\", " +
+			"\"Location\":\"file://localhost/G:/ServerFolders/Music/Prince/The%20Hits_The%20B-Sides%20%5BDisc%202%5D/2-11%20Kiss.mp3\", " +
+			"\"Name\":\"Kiss\",\"PlayCount\":0,\"SampleRate\":44100,\"Size\":5435292,\"TotalTime\":226377,\"TrackNumber\":11}";
+
+			var jss = new JavaScriptSerializer();
+			return jss.Deserialize<dynamic>(json);
+		}
 
 		[Test]
 		public void Should_return_correct_instance_type()
 		{
-			var solrFieldParser = new SolrFieldParser<SolrTrack>(_fieldMapper);
-			Assert.That(solrFieldParser.ParseFields(new NameValueCollection()), Is.TypeOf(typeof(SolrTrack)));
-		}
-		
-		[Test]
-		public void Should_read_field_name_attributes()
-		{
-			var solrFieldParser = new SolrFieldParser<SolrTrack>(_fieldMapper);
-			solrFieldParser.ParseFields(null);
-		}
+			var solrFieldParser = new SolrFieldParser<SolrTrack>(new SolrFieldMapper<SolrTrack>());
+			var condition = solrFieldParser.ParseFields(StubTrack());
+			Assert.That(condition, Is.TypeOf(typeof(SolrTrack)));
 
-		[Test]
-		public void SHould_fall_back_to_property_name()
-		{
-			
 		}
-
-		[Test]
-		public void SHould_not_fail_if_does_not_exist(){}
 	}
 
 	[TestFixture]
@@ -156,17 +153,18 @@ namespace catalogue.Integration.Tests
 		public void Should_map_fields_to_properties()
 		{
 			var solrFieldMapper = new SolrFieldMapper<SolrTrack>();
-			Assert.That(solrFieldMapper.GetPropertyToFieldMapping().Count(), Is.EqualTo(9));
+			var propertyToFieldMapping = solrFieldMapper.GetPropertyToFieldMapping();
+			Assert.That(propertyToFieldMapping.Count(), Is.EqualTo(9));
 		}
 	}
 
 	public class SolrFieldMapper<T> : IFieldMapper
 	{
-		public IDictionary<PropertyInfo, Attribute> GetPropertyToFieldMapping()
+		public IDictionary<PropertyInfo, SolrFieldAttribute> GetPropertyToFieldMapping()
 		{
 			var type = typeof(T);
 
-			var propertyToFieldMapping = new Dictionary<PropertyInfo, Attribute>();
+			var propertyToFieldMapping = new Dictionary<PropertyInfo, SolrFieldAttribute>();
 
 			foreach (var property in type.GetProperties())
 			{
@@ -180,7 +178,7 @@ namespace catalogue.Integration.Tests
 
 	public interface IFieldMapper
 	{
-		IDictionary<PropertyInfo, Attribute> GetPropertyToFieldMapping();
+		IDictionary<PropertyInfo, SolrFieldAttribute> GetPropertyToFieldMapping();
 	}
 
 	public class SolrFieldParser<T>
@@ -192,13 +190,24 @@ namespace catalogue.Integration.Tests
 			_fieldMapper = fieldMapper;
 		}
 
-		public T ParseFields(NameValueCollection doc)
+		public T ParseFields(dynamic doc)
 		{
 			var type = typeof (T);
 
 			var propertyToFieldMapping = _fieldMapper.GetPropertyToFieldMapping();
 
-			return (T)Activator.CreateInstance(type);
+			var instance = (T)Activator.CreateInstance(type);
+
+			foreach (var attribute in propertyToFieldMapping)
+			{
+				PropertyInfo propertyInfo = attribute.Key;
+				MethodInfo methodInfo = propertyInfo.GetSetMethod();
+				string fieldName = attribute.Value.FieldName;
+				var s = doc[fieldName];
+				methodInfo.Invoke(instance, new object[]{s});
+			}
+
+			return instance;
 		}
 	}
 
