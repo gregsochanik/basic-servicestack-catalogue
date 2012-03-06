@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -9,16 +8,12 @@ using System.Web.Script.Serialization;
 using catalogue.ServiceModel.Solr;
 using Microsoft.Practices.ServiceLocation;
 using NUnit.Framework;
-using Rhino.Mocks;
-using ServiceStack.ServiceInterface.ServiceModel;
 using SolrNet;
 using SolrNet.Attributes;
 using SolrNet.Impl;
-using SolrNet.Impl.FieldParsers;
 
 namespace catalogue.Integration.Tests
 {
-
 	[TestFixture]
 	public class TrackSearchTests
 	{
@@ -34,7 +29,7 @@ namespace catalogue.Integration.Tests
 		[Test]
 		public void Should_be_able_to_retrieve_a_track_from_solr_wothout_solrnet()
 		{
-			var trackSearch = new TrackSearchNoSolrNet(new SolrJsonResponseParser());
+			var trackSearch = new TrackSearchNoSolrNet(new SolrJsonResponseParser(new SolrFieldParser<SolrTrack>(new SolrFieldMapper<SolrTrack>())));
 			ISolrQueryResults<SolrTrack> solrTracks = trackSearch.Search("muse");
 		}
 	}
@@ -97,26 +92,23 @@ namespace catalogue.Integration.Tests
 
 	public class SolrJsonResponseParser : IStringResponseParser
 	{
+		private readonly SolrFieldParser<SolrTrack> _solrFieldParser;
+
+		public SolrJsonResponseParser(SolrFieldParser<SolrTrack> solrFieldParser)
+		{
+			_solrFieldParser = solrFieldParser;
+		}
+
 		public IEnumerable<SolrTrack> EnumerateResponse(string outputAsString)
 		{
 			var jss = new JavaScriptSerializer();
 			var output = jss.Deserialize<dynamic>(outputAsString);
 
 			var docs = output["response"]["docs"];
+
 			foreach(var doc in docs)
 			{
-				yield return new SolrTrack
-				             	{
-									Id = doc["id"],
-				             		Album = doc["Album"],
-									Artist = doc["Artist"],
-									BitRate = doc["BitRate"],
-									Genre = doc["Genre"],
-									Kind = doc["Kind"],
-									Location = doc["Location"],
-									Name = doc["Name"],
-									TrackNumber = doc["TrackNumber"]
-				             	};
+				yield return _solrFieldParser.ParseFields(doc);
 			}
 		}
 	}
@@ -124,13 +116,12 @@ namespace catalogue.Integration.Tests
 	[TestFixture]
 	public class SolrFieldParserTests
 	{
-
-		private dynamic StubTrack()
+		private static dynamic StubTrack()
 		{
-			var json = "{\"id\":\"19223\",\"Album\":\"The Hits/The B-Sides [Disc 2]\",\"Artist\":\"Prince\", " +
-			"\"BitRate\":192,\"Composer\":\"Prince\",\"Genre\":\"Rock\",\"Kind\":\"MPEG audio file\", " +
-			"\"Location\":\"file://localhost/G:/ServerFolders/Music/Prince/The%20Hits_The%20B-Sides%20%5BDisc%202%5D/2-11%20Kiss.mp3\", " +
-			"\"Name\":\"Kiss\",\"PlayCount\":0,\"SampleRate\":44100,\"Size\":5435292,\"TotalTime\":226377,\"TrackNumber\":11}";
+			const string json = "{\"id\":\"19223\",\"Album\":\"The Hits/The B-Sides [Disc 2]\",\"Artist\":\"Prince\", " +
+			                    "\"BitRate\":192,\"Composer\":\"Prince\",\"Genre\":\"Rock\",\"Kind\":\"MPEG audio file\", " +
+			                    "\"Location\":\"file://localhost/G:/ServerFolders/Music/Prince/The%20Hits_The%20B-Sides%20%5BDisc%202%5D/2-11%20Kiss.mp3\", " +
+			                    "\"Name\":\"Kiss\",\"PlayCount\":0,\"SampleRate\":44100,\"Size\":5435292,\"TotalTime\":226377,\"TrackNumber\":11}";
 
 			var jss = new JavaScriptSerializer();
 			return jss.Deserialize<dynamic>(json);
@@ -142,7 +133,6 @@ namespace catalogue.Integration.Tests
 			var solrFieldParser = new SolrFieldParser<SolrTrack>(new SolrFieldMapper<SolrTrack>());
 			var condition = solrFieldParser.ParseFields(StubTrack());
 			Assert.That(condition, Is.TypeOf(typeof(SolrTrack)));
-
 		}
 	}
 
